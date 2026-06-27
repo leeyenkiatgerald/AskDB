@@ -432,6 +432,7 @@ th {
 
 .connection-form label:nth-child(4),
 .connection-form label:nth-child(5),
+.connection-form label:nth-child(6),
 .connection-form button {
   grid-column: 1 / -1;
 }

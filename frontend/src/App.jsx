@@ -15,12 +15,20 @@ const sampleQuestions = [
   'Which products generated the most revenue?',
 ]
 
+const defaultPorts = {
+  MockDB: '0',
+  PostgreSQL: '5432',
+  MySQL: '3306',
+  'SQL Server': '1433',
+}
+
 const emptyConnection = {
   dbType: 'MockDB',
   host: 'localhost',
   port: '0',
   databaseName: 'AskDB Demo Warehouse',
   username: 'demo_manager',
+  password: '',
 }
 
 function App() {
@@ -63,10 +71,23 @@ function App() {
     try {
       const response = await connectDatabase(connection)
       setConnectedDb(response.connection)
+      setSchema(response.tables || [])
       setActiveView('query')
     } catch (err) {
       setError(err.message)
     }
+  }
+
+  function handleDbTypeChange(dbType) {
+    setConnection({
+      ...connection,
+      dbType,
+      port: defaultPorts[dbType] || connection.port,
+      host: dbType === 'MockDB' ? 'localhost' : connection.host,
+      databaseName: dbType === 'MockDB' && !connectedDb ? 'AskDB Demo Warehouse' : connection.databaseName,
+      username: dbType === 'MockDB' && !connectedDb ? 'demo_manager' : connection.username,
+      password: dbType === 'MockDB' ? '' : connection.password,
+    })
   }
 
   async function handleRunQuery(event) {
@@ -166,7 +187,7 @@ function App() {
             <div className="page-heading">
               <p className="eyebrow">Database</p>
               <h1 id="connect-title">Connect your database</h1>
-              <p>Set up the source AskDB should query. The demo connection works with the bundled mock database.</p>
+              <p>Set up MockDB for demos, or connect a remote PostgreSQL, MySQL, or SQL Server database.</p>
             </div>
 
             <div className="connect-layout">
@@ -175,7 +196,7 @@ function App() {
                   Type
                   <select
                     value={connection.dbType}
-                    onChange={(event) => setConnection({ ...connection, dbType: event.target.value })}
+                    onChange={(event) => handleDbTypeChange(event.target.value)}
                   >
                     <option>MockDB</option>
                     <option>PostgreSQL</option>
@@ -209,6 +230,15 @@ function App() {
                   <input
                     value={connection.username}
                     onChange={(event) => setConnection({ ...connection, username: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Password
+                  <input
+                    type="password"
+                    value={connection.password}
+                    onChange={(event) => setConnection({ ...connection, password: event.target.value })}
+                    placeholder={connection.dbType === 'MockDB' ? 'Not required for MockDB' : 'Database password'}
                   />
                 </label>
                 <button className="primary-button" type="submit">

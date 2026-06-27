@@ -1,6 +1,6 @@
 # AskDB Backend
 
-Dependency-light Java HTTP API for the AskDB MVP.
+Dependency-light Java HTTP API for the AskDB MVP. It supports the bundled MockDB and remote JDBC connections for PostgreSQL, MySQL, and SQL Server.
 
 ## Recommended dev command
 
@@ -19,6 +19,8 @@ That starts both the backend and the frontend together.
 ```
 
 The backend runs at `http://localhost:9090` by default.
+
+On startup, the script downloads JDBC driver jars into `backend/lib/` when they are missing. MockDB continues to work without those jars, but remote database connections need them.
 
 Use a different port with:
 

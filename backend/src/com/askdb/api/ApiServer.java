@@ -1,6 +1,7 @@
 package com.askdb.api;
 
 import com.askdb.db.MockDatabase;
+import com.askdb.service.DatabaseConnection;
 import com.askdb.service.QueryResult;
 import com.askdb.service.QueryService;
 import com.askdb.util.Json;
@@ -12,9 +13,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 
@@ -58,7 +59,13 @@ public class ApiServer {
         if (preflight(exchange)) return;
         if (!requireMethod(exchange, "GET")) return;
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("tables", database.schema());
+        try {
+            response.put("connection", queryService.activeConnection().toMap());
+            response.put("tables", queryService.schema());
+        } catch (SQLException exception) {
+            sendError(exchange, 502, "Connected database is reachable, but schema could not be loaded: " + exception.getMessage());
+            return;
+        }
         sendJson(exchange, 200, response);
     }
 
@@ -80,20 +87,24 @@ public class ApiServer {
         String portValue = Json.extractString(body, "port", "0");
         String databaseName = Json.extractString(body, "databaseName", "AskDB Demo Warehouse");
         String username = Json.extractString(body, "username", "demo_manager");
-
-        Map<String, Object> connection = new LinkedHashMap<>();
-        connection.put("dbType", dbType);
-        connection.put("host", host);
-        connection.put("port", portValue);
-        connection.put("databaseName", databaseName);
-        connection.put("username", username);
-        connection.put("mode", "mock");
-        connection.put("connectedAt", Instant.now().toString());
+        String password = Json.extractString(body, "password", "");
 
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("ok", true);
-        response.put("message", "Connected to mock database. Remote database drivers can be added later.");
-        response.put("connection", connection);
+        try {
+            DatabaseConnection connection = queryService.connect(dbType, host, portValue, databaseName, username, password);
+            response.put("ok", true);
+            response.put("message", connection.mode().equals("mock")
+                    ? "Connected to mock database."
+                    : "Connected to remote " + connection.dbType() + " database.");
+            response.put("connection", connection.toMap());
+            response.put("tables", queryService.schema());
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            sendError(exchange, 400, exception.getMessage());
+            return;
+        } catch (SQLException exception) {
+            sendError(exchange, 502, "Could not connect to remote database: " + exception.getMessage());
+            return;
+        }
         sendJson(exchange, 200, response);
     }
 
@@ -110,8 +121,14 @@ public class ApiServer {
             return;
         }
 
-        QueryResult result = queryService.ask(question, databaseName, previousSql);
-        sendJson(exchange, 200, result.toMap());
+        try {
+            QueryResult result = queryService.ask(question, databaseName, previousSql);
+            sendJson(exchange, 200, result.toMap());
+        } catch (IllegalArgumentException exception) {
+            sendError(exchange, 400, exception.getMessage());
+        } catch (SQLException exception) {
+            sendError(exchange, 502, "Remote query failed: " + exception.getMessage());
+        }
     }
 
     private void handleNotFound(HttpExchange exchange) throws IOException {

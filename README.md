@@ -1,6 +1,6 @@
 # AskDB
 
-AskDB is a lightweight dashboard that lets a non-technical manager ask a relational database questions in plain English. The backend turns a supported question into SQL, runs it against a seeded mock database and returns a table plus the generated SQL.
+AskDB is a lightweight dashboard that lets a non-technical manager ask a relational database questions in plain English. The backend turns a supported question into SQL, runs it against either the seeded mock database or the currently connected remote database, and returns a table plus the generated SQL.
 
 ## Project structure
 
@@ -9,7 +9,7 @@ AskDB/
   package.json        One-command dev scripts
   scripts/dev.mjs     Starts backend and frontend together
   frontend/           React + Vite dashboard
-  backend/            Dependency-light Java API and mock relational database
+  backend/            Dependency-light Java API, mock database, and JDBC remote database connector
 ```
 
 ## Run both frontend and backend together
@@ -68,10 +68,25 @@ npm run preview
 ## API endpoints
 
 - `GET /api/health` - backend status
-- `GET /api/schema` - mock database schema
-- `POST /api/connect` - accepts connection fields and returns a mock connection
-- `POST /api/query` - turns a plain-English question into SQL and returns rows
+- `GET /api/schema` - active database schema
+- `POST /api/connect` - validates and stores the active MockDB or remote database connection
+- `POST /api/query` - turns a plain-English question into SQL and returns rows from the active database
 - `GET /api/history` - in-memory query history
+
+## Remote database connections
+
+The connection page supports:
+
+- MockDB
+- PostgreSQL
+- MySQL
+- SQL Server
+
+When the backend starts, `backend/run.sh` and `backend/run.bat` run `scripts/fetch-jdbc.mjs` to download JDBC drivers into `backend/lib/`. Those jars are ignored by git. If the download is skipped or offline, MockDB still works, but remote connection attempts will return a driver error.
+
+For remote databases, `/api/connect` now opens a real JDBC connection with the submitted host, port, database name, username, and password. On success, AskDB stores that connection configuration in memory and refreshes `/api/schema` from database metadata. On failure, it returns an error instead of pretending the connection worked.
+
+Remote queries are read-only: the backend only runs generated `SELECT` or `WITH` SQL and rejects multiple statements.
 
 ## Supported sample questions
 
@@ -88,4 +103,4 @@ This fixed version keeps one frontend in `frontend/`, keeps one backend in `back
 
 ## Next production steps
 
-To connect a real database, add JDBC drivers and credentials, replace the mock database executor with a real read-only SQL executor and replace the rule-based SQL generator with an LLM-backed generator or a stronger parser.
+The remote JDBC executor is now in place. The next major upgrade is replacing the rule-based SQL generator with an LLM-backed generator or stronger parser that can generate SQL from each connected database schema.
