@@ -72,6 +72,7 @@
 
 .brand-button:focus-visible,
 .nav-button:focus-visible,
+.database-button:focus-visible,
 .side-history-list button:focus-visible,
 .samples button:focus-visible,
 .query-icon-button:focus-visible,
@@ -88,6 +89,59 @@
   place-items: center;
   color: var(--primary-dark);
   font-size: 1.15rem;
+}
+
+.database-switcher {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-label {
+  padding: 0 14px 3px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.database-button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+}
+
+.database-button:hover,
+.database-button.active {
+  border-color: var(--border);
+  background: #f1e9ff;
+}
+
+.database-button span {
+  overflow: hidden;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.database-button small,
+.database-empty {
+  color: var(--muted);
+}
+
+.database-empty {
+  margin: 0;
+  padding: 8px 14px;
+  font-size: 0.9rem;
 }
 
 .sidebar-bottom {

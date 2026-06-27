@@ -15,6 +15,13 @@ const sampleQuestions = [
   'Which products generated the most revenue?',
 ]
 
+const carSalesQuestions = [
+  "Show me the top 10 customers by revenue who haven't ordered in 30 days",
+  'Show recent car sales',
+  'Which car models generated the most revenue?',
+  'Which dealer regions have the most revenue?',
+]
+
 const defaultPorts = {
   MockDB: '0',
   PostgreSQL: '5432',
@@ -35,6 +42,7 @@ function App() {
   const [status, setStatus] = useState({ ok: false, message: 'Checking backend...' })
   const [connection, setConnection] = useState(emptyConnection)
   const [connectedDb, setConnectedDb] = useState(null)
+  const [savedRemoteConnection, setSavedRemoteConnection] = useState(null)
   const [schema, setSchema] = useState([])
   const [history, setHistory] = useState([])
   const [question, setQuestion] = useState('')
@@ -52,6 +60,7 @@ function App() {
           getHistory(),
         ])
         setStatus({ ok: true, message: health.message })
+        setConnectedDb(schemaResponse.connection || null)
         setSchema(schemaResponse.tables || [])
         setHistory(historyResponse.items || [])
       } catch (err) {
@@ -64,6 +73,10 @@ function App() {
 
   const columns = useMemo(() => result?.columns || [], [result])
   const databaseLabel = connectedDb?.databaseName || connection.databaseName
+  const isCarSalesSchema = schema.some((table) => table.name === 'car_sales')
+  const visibleSampleQuestions = isCarSalesSchema ? carSalesQuestions : sampleQuestions
+  const activeDatabaseKey = connectedDb?.mode === 'remote' ? 'remote' : 'mock'
+  const remoteDatabaseOption = savedRemoteConnection || (connectedDb?.mode === 'remote' ? connectedDb : null)
 
   async function handleConnect(event) {
     event.preventDefault()
@@ -72,9 +85,39 @@ function App() {
       const response = await connectDatabase(connection)
       setConnectedDb(response.connection)
       setSchema(response.tables || [])
+      if (response.connection?.mode === 'remote') {
+        setSavedRemoteConnection({ ...connection })
+      }
       setActiveView('query')
     } catch (err) {
       setError(err.message)
+    }
+  }
+
+  async function chooseDatabase(databaseKey) {
+    const nextConnection = databaseKey === 'remote' ? savedRemoteConnection : emptyConnection
+    if (!nextConnection) {
+      if (databaseKey === 'remote' && activeDatabaseKey === 'remote') {
+        setActiveView('query')
+        return
+      }
+      setError('Reconnect the remote database before switching back to it.')
+      return
+    }
+
+    setError('')
+    setIsLoading(true)
+    try {
+      const response = await connectDatabase(nextConnection)
+      setConnection(nextConnection)
+      setConnectedDb(response.connection)
+      setSchema(response.tables || [])
+      setResult(null)
+      setActiveView('query')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -150,6 +193,30 @@ function App() {
             <span aria-hidden="true">Q</span>
             <span>New query</span>
           </button>
+
+          <div className="database-switcher">
+            <div className="sidebar-label">Databases</div>
+            <button
+              className={activeDatabaseKey === 'mock' ? 'database-button active' : 'database-button'}
+              type="button"
+              onClick={() => chooseDatabase('mock')}
+            >
+              <span>AskDB Demo Warehouse</span>
+              <small>MockDB</small>
+            </button>
+            {remoteDatabaseOption ? (
+              <button
+                className={activeDatabaseKey === 'remote' ? 'database-button active' : 'database-button'}
+                type="button"
+                onClick={() => chooseDatabase('remote')}
+              >
+                <span>{remoteDatabaseOption.databaseName}</span>
+                <small>{remoteDatabaseOption.dbType}</small>
+              </button>
+            ) : (
+              <p className="database-empty">Connect Neon to add it here.</p>
+            )}
+          </div>
         </div>
 
         <div className="sidebar-bottom">
@@ -325,7 +392,7 @@ function App() {
 
             {!result && (
               <div className="samples">
-                {sampleQuestions.map((sample) => (
+                {visibleSampleQuestions.map((sample) => (
                   <button key={sample} type="button" onClick={() => setQuestion(sample)}>
                     {sample}
                   </button>

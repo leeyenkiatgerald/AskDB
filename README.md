@@ -88,6 +88,25 @@ For remote databases, `/api/connect` now opens a real JDBC connection with the s
 
 Remote queries are read-only: the backend only runs generated `SELECT` or `WITH` SQL and rejects multiple statements.
 
+## AI SQL generation
+
+For remote databases, AskDB can use OpenAI to translate arbitrary English questions into SQL for the active schema.
+
+Set your API key before starting the app:
+
+```bash
+export OPENAI_API_KEY="your_openai_api_key"
+npm run dev
+```
+
+Optional model override:
+
+```bash
+export OPENAI_MODEL="gpt-4o-mini"
+```
+
+When `OPENAI_API_KEY` is not set, remote databases fall back to the built-in rule-based generator. MockDB always uses the built-in demo generator because it is backed by an in-memory Java executor rather than a real SQL engine.
+
 ## Supported sample questions
 
 - `Show me the top 10 customers by revenue who haven't ordered in 30 days`

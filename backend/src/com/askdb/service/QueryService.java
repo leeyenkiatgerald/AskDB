@@ -3,6 +3,7 @@ package com.askdb.service;
 import com.askdb.db.MockDatabase;
 import com.askdb.db.RemoteDatabase;
 import com.askdb.nlp.GeneratedSql;
+import com.askdb.nlp.OpenAiSqlGenerator;
 import com.askdb.nlp.RuleBasedSqlGenerator;
 import com.askdb.nlp.SqlGenerator;
 
@@ -16,15 +17,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class QueryService {
     private final MockDatabase database;
-    private final SqlGenerator sqlGenerator;
+    private final SqlGenerator ruleBasedSqlGenerator;
+    private final SqlGenerator aiSqlGenerator;
     private final List<QueryResult> history = new ArrayList<>();
     private final AtomicInteger idCounter = new AtomicInteger(1);
     private RemoteDatabase remoteDatabase;
     private DatabaseConnection activeConnection;
+    private List<Map<String, Object>> activeSchema;
 
     public QueryService(MockDatabase database) {
         this.database = database;
-        this.sqlGenerator = new RuleBasedSqlGenerator();
+        this.ruleBasedSqlGenerator = new RuleBasedSqlGenerator();
+        this.aiSqlGenerator = new OpenAiSqlGenerator(ruleBasedSqlGenerator);
+        this.activeSchema = database.schema();
         this.activeConnection = new DatabaseConnection(
                 "MockDB",
                 "localhost",
@@ -39,6 +44,7 @@ public class QueryService {
     public synchronized DatabaseConnection connect(String dbType, String host, String port, String databaseName, String username, String password) throws SQLException {
         if (dbType == null || dbType.isBlank() || "MockDB".equalsIgnoreCase(dbType.trim())) {
             remoteDatabase = null;
+            activeSchema = database.schema();
             activeConnection = new DatabaseConnection(
                     "MockDB",
                     host == null || host.isBlank() ? "localhost" : host.trim(),
@@ -53,8 +59,9 @@ public class QueryService {
 
         RemoteDatabase candidate = new RemoteDatabase(dbType, host, port, databaseName, username, password);
         candidate.testConnection();
-        candidate.schema();
+        List<Map<String, Object>> candidateSchema = candidate.schema();
         remoteDatabase = candidate;
+        activeSchema = candidateSchema;
         activeConnection = new DatabaseConnection(
                 dbType.trim(),
                 host.trim(),
@@ -68,14 +75,12 @@ public class QueryService {
     }
 
     public synchronized List<Map<String, Object>> schema() throws SQLException {
-        if (remoteDatabase == null) {
-            return database.schema();
-        }
-        return remoteDatabase.schema();
+        return activeSchema;
     }
 
     public synchronized QueryResult ask(String question, String databaseName, String previousSql) throws SQLException {
-        GeneratedSql generatedSql = sqlGenerator.generate(question, databaseName, previousSql);
+        SqlGenerator generator = remoteDatabase == null ? ruleBasedSqlGenerator : aiSqlGenerator;
+        GeneratedSql generatedSql = generator.generate(question, activeConnection.databaseName(), previousSql, activeConnection.dbType(), activeSchema);
         MockDatabase.QueryOutput output = remoteDatabase == null
                 ? database.execute(generatedSql)
                 : remoteDatabase.execute(generatedSql);
